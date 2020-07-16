@@ -18,6 +18,7 @@ class Video:
     status: str
     downloaded_path: str
     sponsor_times: list
+    latest_sponsortime_at: datetime.datetime
 
 
 @dataclass

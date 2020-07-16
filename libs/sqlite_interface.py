@@ -2,6 +2,7 @@ import sqlite3
 import os
 import libs.classes as obj
 import datetime
+from libs.sb_times_retrival import compare_sponsor_times
 
 
 class Db:
@@ -26,7 +27,7 @@ class Db:
     def _create_videos(self):
         # creates tables associated to videos
         self.c.execute(
-            '''create table if not exists videos(id integer primary key autoincrement, video_id text unique,status text,downloaded_path text);''')
+            '''create table if not exists videos(id integer primary key autoincrement, video_id text unique,status text,downloaded_path text, latest_sponsortime_at text);''')
         self.c.execute(
             '''create table if not exists sponsor_times(id integer primary key autoincrement, video_id text,  start text, stop text, votes integer)''')
         self.conn.commit()
@@ -71,12 +72,12 @@ class Db:
 
 
     def get_video(self, video_id: str):
-        self.c.execute(f"SELECT id, video_id, status, downloaded_path FROM videos WHERE videos.video_id=?;", (video_id,))
-        vid_tuple = self.c.fetchone()
+        self.c.execute(f"SELECT id, video_id, status, downloaded_path,latest_sponsortime_at FROM videos WHERE videos.video_id=?;", (video_id,))
+        id, video_id, status, downloaded_path,latest_sponsortime = self.c.fetchone()
         self.c.execute(f"SELECT id, video_id, start, stop, votes FROM sponsor_times WHERE sponsor_times.video_id=?;", (video_id,))
         sponsor_times = [obj.SponsorTime(*st) for st in self.c.fetchall()]
 
-        return obj.Video(*vid_tuple, sponsor_times=sponsor_times)
+        return obj.Video(id, video_id, status, downloaded_path,sponsor_times,latest_sponsortime)
 
     def update_video(self, vid: obj.Video):
         self.c.execute(f"update videos set status=?, downloaded_path=? where video_id=?",(vid.status, vid.downloaded_path, vid.video_id))
@@ -85,8 +86,28 @@ class Db:
             sponsor_times_tuple = [(st.video_id, st.start, st.stop, st.votes) for st in vid.sponsor_times]
             self.c.executemany('''insert into sponsor_times (video_id, start, stop, votes) values (?,?,?,?)''',
                                sponsor_times_tuple)
-
         self.conn.commit()
+        return self.get_video(video_id=vid.video_id)
+
+
+
+    def update_video_sponsortimes_if_new(self, vid: obj.Video):
+        vid_in_db = self.get_video(vid.video_id)
+        if vid_in_db.sponsor_times is None and vid.sponsor_times is None:
+            return False, vid
+        if vid_in_db.sponsor_times is None and vid.sponsor_times:
+            new_vid = self.update_video(vid)
+            return True,new_vid
+        if vid_in_db.sponsor_times and vid.sponsor_times is None:
+            new_vid=self.update_video(vid)
+            return True,new_vid
+
+        for st in vid_in_db.sponsor_times:
+            if not any([compare_sponsor_times(st, new_st) for new_st in vid.sponsor_times]):
+                new_vid=self.update_video(vid)
+                return True, new_vid
+        return False, vid
+
 
 
 if __name__ == "__main__":
@@ -94,6 +115,8 @@ if __name__ == "__main__":
     db.create_tables()
     db.create_channel(obj.Channel(None, "bla", "bla",None))
     print(db.get_channel("bla"))
-    db.create_video(obj.Video(None, "123", "DOWNLOADING", None, [obj.SponsorTime(None, "123", "13", "12", 51), ]))
-    db.update_video(obj.Video(None, "123", "DONE", "bla",[obj.SponsorTime(None, "123", "13", "123", 51),]))
+    v = db.create_video(obj.Video(None, "123", "DOWNLOADING", None, [obj.SponsorTime(None, "123", "13", "12", 51), ],None))
+    db.update_video(obj.Video(None, "123", "DONE", "bla",[obj.SponsorTime(None, "123", "13", "123", 51),],None))
+    v.sponsor_times.append(obj.SponsorTime(None, "123", "13", "12", 51))
     print(db.get_video("123"))
+    print(db.update_video_sponsortimes_if_new(v))
