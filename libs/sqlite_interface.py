@@ -5,7 +5,7 @@ import datetime
 import config
 
 # TODO: Status should be array!!!!
-class Db(metaclass=obj.Singleton):
+class Db:
     def __init__(self, db_name="yt_dl_sb.db", create_new=False):
         if create_new:
             if os.path.exists(db_name):
