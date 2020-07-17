@@ -5,8 +5,8 @@ import time
 import config
 import os
 import mimetypes
-
-# TODO: Try this!
+# import subprocess
+from  datetime import datetime
 
 
 class ytdl_logger(object):
@@ -21,7 +21,7 @@ class ytdl_logger(object):
 
 
 def download(vid: obj.Video):
-    global filename
+
     ydl_opts = {
         "writesubtitles": True,
         "subtitlesformat": "srt",
@@ -31,9 +31,23 @@ def download(vid: obj.Video):
         "logger": ytdl_logger(),
         "test": True,
     }
+
+    # ydl_opts = [
+    #     "--write-sub",
+    #     "--sub-format","srt",
+    #     "--output",os.path.join(config.OUTPUT_DIR, "SPON - %(uploader)s - %(title)s [%(id)s].%(ext)s"),
+    #     "--format", "bestvideo+bestaudio",
+    #     "--ffmpeg-location", config.FFMPEG_BIN,
+    #     "--test"
+    # ]
+
+
     with YoutubeDL(ydl_opts) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={vid.video_id}", ])
-    return
+
+    # subprocess.run([os.path.join(sys.prefix,"Scripts","youtube-dl"),*ydl_opts, vid.video_id])
+    # time.sleep(1)
+
 
 
 def find_filename(video: obj.Video):
@@ -41,23 +55,13 @@ def find_filename(video: obj.Video):
     for root, folder, files in os.walk(config.OUTPUT_DIR, topdown=False):
         for name in files:
             if name.find(f"[{video.video_id}]") != -1:
-                print("path: ", os.path.join(root, name))
                 files_w_id.append(os.path.join(root, name))
-    return files_w_id
+    for f in files_w_id:
+        mimetype = mimetypes.guess_type(f)[0]
+        if mimetype and mimetype.find("video") != -1:
+            return f
 
-def rename_files_return_video(video: obj.Video):
-    filenames = find_filename(video)
-    new_filenames = []
-    for filename in filenames:
-        base = os.path.dirname(filename)
-        file = os.path.basename(filename)
-        new_file = "".join(file.split(f" [{video.video_id}]"))
-        new_filename = os.path.join(base,new_file)
-        os.rename(filename,new_filename)
-        new_filenames.append(new_filename)
-    for f in new_filenames:
-        print(mimetypes.guess_type(f))
-    return new_filename
+
 
 def YtDlThread(in_q, out_q):
     db = Db()
@@ -68,16 +72,18 @@ def YtDlThread(in_q, out_q):
             v.status = obj.VidStatus.DOWNLOADING
             db.update_video(v)
             try:
-                import sys
-                print("download file")
+
+                print(f"[{datetime.now()}] - YtDl - Getting video {v.video_id}")
+
                 download(v)
                 v.status = obj.VidStatus.FINISHED_DOWNLOADING
 
-                v.downloaded_path = rename_files_return_video(v)
-                print(v.downloaded_path)
+                v.downloaded_path = find_filename(v)
+                print(f"[{datetime.now()}] - YtDl - Video {v.video_id} is stored in {v.downloaded_path}")
+
 
             except Exception as e:
-                print("EXCEPTION in YT_DL:", e)
+                print(f"EXCEPTION - [{datetime.now()}] - YtDl - ", e)
                 v.status = obj.VidStatus.ERROR_DOWNLOADING + " " + str(e)
             db.update_video(v)
             out_q.put(v)
