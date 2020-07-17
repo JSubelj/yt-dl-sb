@@ -1,7 +1,7 @@
 from youtube_dl import YoutubeDL
 import libs.classes as obj
 from  libs.sqlite_interface import Db
-
+import time
 # TODO: Try this!
 filename = ""
 
@@ -26,6 +26,7 @@ def YtDlThread(in_q, out_q):
     db = Db()
     while True:
         vid_files = in_q.get()
+
         for v in vid_files:
             v.status = obj.VidStatus.DOWNLOADING
             db.update_video(v)
@@ -40,6 +41,7 @@ def YtDlThread(in_q, out_q):
 
 
 
+
 if __name__=="__main__":
     from queue import Queue
     from threading import Thread
@@ -49,4 +51,6 @@ if __name__=="__main__":
     q2 = Queue()
     t = Thread(target=YtDlThread, args=(q1,q2))
     t.start()
+    time.sleep(10)
+    q1.put([obj.Video(None, "HeUietgDuVc", "FETCHED", None, [obj.SponsorTime(None, "123", "13", "12", 51), ], None), ])
     #download(obj.Video(None,"LtlyeDAJR7A",None,None,None,None))

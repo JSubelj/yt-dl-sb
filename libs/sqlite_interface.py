@@ -2,9 +2,9 @@ import sqlite3
 import os
 import libs.classes as obj
 import datetime
-from libs.sb_times_retrival import compare_sponsor_times
+import config
 
-
+# TODO: Status should be array!!!!
 class Db(metaclass=obj.Singleton):
     def __init__(self, db_name="yt_dl_sb.db", create_new=False):
         if create_new:
@@ -14,7 +14,6 @@ class Db(metaclass=obj.Singleton):
         self.c = self.conn.cursor()
         if create_new:
             self.create_tables()
-
 
     def __enter__(self):
         return self
@@ -33,7 +32,7 @@ class Db(metaclass=obj.Singleton):
         self.c.execute(
             '''create table if not exists videos(id integer primary key autoincrement, video_id text unique,status text,downloaded_path text, latest_sponsortime_at text);''')
         self.c.execute(
-            '''create table if not exists sponsor_times(id integer primary key autoincrement, video_id text,  start text, stop text, votes integer)''')
+            '''create table if not exists sponsor_times(id integer primary key autoincrement, video_id text,  start real, stop real, votes integer)''')
         self.conn.commit()
 
     def _create_channels(self):
@@ -67,10 +66,10 @@ class Db(metaclass=obj.Singleton):
     def get_all_channels(self):
         self.c.execute("SELECT id, channel_id, channel_name, last_fetched FROM channels;")
         return [
-            obj.Channel(id, channel_id, channel_name, datetime.datetime.fromisoformat(last_fetched) if last_fetched else None) for
+            obj.Channel(id, channel_id, channel_name,
+                        datetime.datetime.fromisoformat(last_fetched) if last_fetched else None) for
             id, channel_id, channel_name, last_fetched in self.c.fetchall()
         ]
-
 
     def create_video(self, vid: obj.Video):
         self.c.execute('''insert into videos (video_id, status, downloaded_path) values (?,?,?)''',
@@ -88,10 +87,16 @@ class Db(metaclass=obj.Singleton):
         self.c.execute(
             f"SELECT id, video_id, status, downloaded_path,latest_sponsortime_at FROM videos WHERE videos.video_id=?;",
             (video_id,))
-        id, video_id, status, downloaded_path, latest_sponsortime = self.c.fetchone()
+        res = self.c.fetchone()
+        if res is None:
+            return
+        id, video_id, status, downloaded_path, latest_sponsortime = res
         self.c.execute(f"SELECT id, video_id, start, stop, votes FROM sponsor_times WHERE sponsor_times.video_id=?;",
                        (video_id,))
-        sponsor_times = [obj.SponsorTime(*st) for st in self.c.fetchall()]
+        res = self.c.fetchall()
+        if res is None:
+            return
+        sponsor_times = [obj.SponsorTime(*st) for st in res]
 
         return obj.Video(id, video_id, status, downloaded_path, sponsor_times, latest_sponsortime)
 
@@ -107,32 +112,52 @@ class Db(metaclass=obj.Singleton):
         return self.get_video(video_id=vid.video_id)
 
     def update_video_sponsortimes_if_new(self, vid: obj.Video):
+        from libs.sb_times_retrival import is_sponsor_time_same
+
         vid_in_db = self.get_video(vid.video_id)
         if vid_in_db.sponsor_times is None and vid.sponsor_times is None:
             return False, vid
+
         if vid_in_db.sponsor_times is None and vid.sponsor_times:
             new_vid = self.update_video(vid)
             return True, new_vid
         if vid_in_db.sponsor_times and vid.sponsor_times is None:
             new_vid = self.update_video(vid)
             return True, new_vid
+        if len(vid_in_db.sponsor_times) != len(vid.sponsor_times):
+            new_vid = self.update_video(vid)
+            return True, new_vid
 
         for st in vid_in_db.sponsor_times:
-            if not any([compare_sponsor_times(st, new_st) for new_st in vid.sponsor_times]):
+            if not any([is_sponsor_time_same(st, new_st) for new_st in vid.sponsor_times]):
+                if config.DEVELOPMENT:
+                    print(vid.sponsor_times, vid_in_db.sponsor_times)
                 new_vid = self.update_video(vid)
+
                 return True, new_vid
+
+        print("Tuki5")
         return False, vid
+
+    def check_if_vid_exist_else_add(self, vid: obj.Video):
+        if self.get_video(vid.video_id):
+            return False, vid
+        return True, self.create_video(vid)
+
+
+
 
 
 if __name__ == "__main__":
     db = Db(create_new=True)
 
-    #db.create_tables()
-    #db.create_channel(obj.Channel(None, "bla", "bla", None))
-    #print(db.get_channel("bla"))
-    v = db.create_video(
-        obj.Video(None, "HeUietgDuVc", "FETCHED", None, [obj.SponsorTime(None, "123", "13", "12", 51), ], None))
-    #db.update_video(obj.Video(None, "123", "DONE", "bla", [obj.SponsorTime(None, "123", "13", "123", 51), ], None))
-    #v.sponsor_times.append(obj.SponsorTime(None, "123", "13", "12", 51))
-    #print(db.get_video("123"))
-    #print(db.update_video_sponsortimes_if_new(v))
+    # db.create_tables()
+    # db.create_channel(obj.Channel(None, "bla", "bla", None))
+    # print(db.get_channel("bla"))
+    # v = db.create_video(
+    #     obj.Video(None, "HeUietgDuVc", "FETCHED", None, [obj.SponsorTime(None, "123", "13", "12", 51), ], None))
+    # print(db.get_video("fdsa"))
+    # db.update_video(obj.Video(None, "123", "DONE", "bla", [obj.SponsorTime(None, "123", "13", "123", 51), ], None))
+    # v.sponsor_times.append(obj.SponsorTime(None, "123", "13", "12", 51))
+    # print(db.get_video("123"))
+    # print(db.update_video_sponsortimes_if_new(v))

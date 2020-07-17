@@ -12,8 +12,8 @@ class Singleton(type):
 class SponsorTime:
     id: int
     video_id: str
-    start: str
-    stop: str
+    start: float
+    stop: float
     votes: int
 
 
@@ -40,6 +40,7 @@ class VidStatus:
     DOWNLOADING = "DOWNLOADING"  # downloading
     FINISHED_DOWNLOADING = "FINISHED_DOWNLOADING"
     WAITING_SPONSORTIMES = "WAITING_SPONSORTIMES"  # waiting for sponsortimes
+    SPONSORTIMES_DONE = "SPONSORTIMES_DONE"
     CUTTING = "CUTTING"  # cutting video
     DONE = "DONE"
     ERROR_DOWNLOADING = "ERROR_DOWNLOADING"
