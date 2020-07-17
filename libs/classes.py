@@ -1,6 +1,12 @@
 from dataclasses import dataclass
 import datetime
 
+class Singleton(type):
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
 
 @dataclass
 class SponsorTime:
@@ -32,6 +38,8 @@ class Channel:
 class VidStatus:
     FETCHED = "FETCHED"  # got link from yt download
     DOWNLOADING = "DOWNLOADING"  # downloading
+    FINISHED_DOWNLOADING = "FINISHED_DOWNLOADING"
     WAITING_SPONSORTIMES = "WAITING_SPONSORTIMES"  # waiting for sponsortimes
     CUTTING = "CUTTING"  # cutting video
     DONE = "DONE"
+    ERROR_DOWNLOADING = "ERROR_DOWNLOADING"
