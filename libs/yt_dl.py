@@ -29,7 +29,7 @@ def download(vid: obj.Video):
         "format": "bestvideo+bestaudio",
         "ffmpeg_location": config.FFMPEG_BIN,
         "logger": ytdl_logger(),
-        "test": True,
+        # "test": True,
     }
 
     # ydl_opts = [

@@ -103,11 +103,13 @@ if __name__ == "__main__":
     q1= queue.Queue()
     q2 = queue.Queue()
 
-    db = Db(create_new=True)
-    v1=obj.Video(None, "HeUietgDuVc", "FETCHED", None, [obj.SponsorTime(None, "123", "13", "12", 51), ], None)
-    v2=obj.Video(None, "HeUietgşdDuVc", "FETCHED", None, [obj.SponsorTime(None, "123", "13", "12", 51), ], None)
-    db.create_video(v1)
-    db.create_video(v2)
+    db = Db()
+    # v1=obj.Video(None, "HeUietgDuVc", "FETCHED", None, [obj.SponsorTime(None, "123", "13", "12", 51), ], None)
+    # v2=obj.Video(None, "LtlyeDAJR7A", "FETCHED", None, [obj.SponsorTime(None, "123", "13", "12", 51), ], None)
+    # db.create_video(v1)
+    # db.create_video(v2)
+    v1 = db.get_video("HeUietgDuVc")
+    v2 = db.get_video("LtlyeDAJR7A")
     q1.put([v1,v2])
 
     SbRetThread(q1,q2)
