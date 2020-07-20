@@ -1,12 +1,17 @@
 import requests
 import libs.classes as obj
 import time
-import config
+from libs import config
 from libs.sqlite_interface import Db
 import queue
 from threading import Thread
 import datetime
 
+
+if hasattr(config, "REMOVE_SPONSORED"):
+    REMOVE_SPONSORED = config.REMOVE_SPONSORED
+else:
+    REMOVE_SPONSORED = False
 
 def get_sponsor_times(video: obj.Video):
     r = requests.get(f"https://sponsor.ajay.app/api/skipSegments?videoID={video.video_id}")
@@ -17,12 +22,12 @@ def get_sponsor_times(video: obj.Video):
 
 
 def is_sponsor_time_same(st1: obj.SponsorTime, st2: obj.SponsorTime):
-    return st1.video_id == st2.video_id and st1.start - st2.start < 0.1 and st1.stop - st2.stop < 0.1
+    return st1.video_id == st2.video_id and abs(st1.start - st2.start) < 1 and abs(st1.stop - st2.stop) < 1
 
 
 def daughterThread(vid: obj.Video, q):
-    SLEEP_FOR_SECONDS = 60
-    for i in range(config.TIME_WATCHING_FOR_SPONSORBLOCK_MIN):
+    SLEEP_FOR_SECONDS = 600
+    for i in range(int(config.TIME_WATCHING_FOR_SPONSORBLOCK_MIN * 60 / SLEEP_FOR_SECONDS)):
         if config.DEVELOPMENT:
             print(f"[{datetime.datetime.now()}] - SbR#{vid.video_id} - Getting sponsor times")
 
@@ -32,9 +37,15 @@ def daughterThread(vid: obj.Video, q):
         if sts:
             vid.sponsor_times = sts
             q.put(vid)
+        if REMOVE_SPONSORED:
+            break
         if config.DEVELOPMENT:
             SLEEP_FOR_SECONDS = 1
         time.sleep(SLEEP_FOR_SECONDS)
+
+def _create_status(db,v,message,keyword=None):
+    db.create_primitive(obj.Status, obj.Status(v.video_id, str(datetime.datetime.now()), "SbR",
+                                               message,keyword=keyword))
 
 
 def SbRetThread(q_in_vids: queue.Queue, q_out_vid: queue.Queue):
@@ -44,19 +55,19 @@ def SbRetThread(q_in_vids: queue.Queue, q_out_vid: queue.Queue):
     while True:
         try:
             # adding new
-            vids = q_in_vids.get_nowait()
+            v = q_in_vids.get_nowait()
             print(f"[{datetime.datetime.now()}] - SbR - Got new vids")
 
-            for v in vids:
-                v.status = obj.VidStatus.WAITING_SPONSORTIMES
-                db.update_video(v)
 
-                q = queue.Queue()
-                t = Thread(target=daughterThread, args=(v, q))
+            _create_status(db,v,"Started watching for sponsor times",obj.VidStatus.WAITING_SPONSORTIMES)
 
-                trd_q_dict[v.video_id] = (t,q)
-                print(f"[{datetime.datetime.now()}] - SbR - Starting watcher thread for id: {v.video_id}")
-                t.start()
+            q = queue.Queue()
+            t = Thread(target=daughterThread, args=(v, q))
+
+            trd_q_dict[v.video_id] = (t,q)
+            print(f"[{datetime.datetime.now()}] - SbR - Starting watcher thread for id: {v.video_id}")
+
+            t.start()
         except queue.Empty:
             pass
 
@@ -72,15 +83,17 @@ def SbRetThread(q_in_vids: queue.Queue, q_out_vid: queue.Queue):
                     print(f"[{datetime.datetime.now()}] - SbR - ({vid.video_id}) Updated sponsorshitp, got {new,vid}")
                 if new:
                     print(f"[{datetime.datetime.now()}] - SbR - Got new sponsortimes for id: {v.video_id}")
+                    _create_status(db,vid, "Got new sponsortimes")
+
                     q_out_vid.put(vid)
 
             except queue.Empty:
                 pass
         for key in remove_keys:
             vid = db.get_video(key)
-            vid.status = obj.VidStatus.SPONSORTIMES_DONE
             db.update_video(vid)
             print(f"[{datetime.datetime.now()}] - SbR - Done watching video: {v.video_id}")
+            _create_status(db,vid, "Stopped watching video for sponsortimes.",keyword=obj.VidStatus.SPONSORTIMES_DONE)
 
             t,q = trd_q_dict[key]
             t.join()
@@ -108,8 +121,8 @@ if __name__ == "__main__":
     # v2=obj.Video(None, "LtlyeDAJR7A", "FETCHED", None, [obj.SponsorTime(None, "123", "13", "12", 51), ], None)
     # db.create_video(v1)
     # db.create_video(v2)
-    v1 = db.get_video("HeUietgDuVc")
-    v2 = db.get_video("LtlyeDAJR7A")
+    v1 = db.get_video("ipFhGlt8Qkw")
+    v2 = db.get_video("bKLM_tWOoYg")
     q1.put([v1,v2])
 
     SbRetThread(q1,q2)

@@ -1,0 +1,8 @@
+{
+  "DEVELOPMENT": false,
+  "TIME_WATCHING_FOR_SPONSORBLOCK_MIN": 60,
+  "FFMPEG_BIN": "C:\\Users\\CleptesGameStation\\Desktop\\toaac\\ffmpeg-20200628-4cfcfb3-win64-static\\bin\\ffmpeg.exe",
+  "_OUTPUT_DIR": "E:\\Users\\cleptes\\Documents\\programming\\Python\\yt-dl-sb\\output",
+  "_TMP_DIR": "E:\\Users\\cleptes\\Documents\\programming\\Python\\yt-dl-sb\\tmp",
+  "REMOVE_SPONSORED": false
+}

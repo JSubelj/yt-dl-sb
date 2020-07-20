@@ -4,8 +4,6 @@
 # See instructions for running these code samples locally:
 # https://developers.google.com/explorer-help/guides/code_samples#python
 
-import os
-
 import googleapiclient.discovery
 import googleapiclient.errors
 import secret
@@ -14,9 +12,13 @@ from datetime import datetime, timedelta
 from libs.sqlite_interface import Db
 import pytz
 import time
-import config
 
 _pacific_tz = pytz.timezone("US/Pacific")
+
+
+def _create_status(db, v, message, keyword=None):
+    db.create_primitive(obj.Status, obj.Status(v.video_id, str(datetime.now()), "YtC",
+                                               message, keyword=keyword))
 
 
 class YtCommunicator(metaclass=obj.Singleton):
@@ -88,30 +90,34 @@ class YtCommunicator(metaclass=obj.Singleton):
         )
         response = request.execute()
         self.fetched += 1
-        return [obj.Video(None, i["id"]["videoId"], obj.VidStatus.FETCHED, None, None, None) for i in response["items"]]
+        vids = [obj.Video(None, i["id"]["videoId"], None, None, None, None) for i in response["items"]]
+
+        return vids
 
 
-def YtCThread(q_out_ytdl, q_out_sb):
+def YtCThread(q_out_ytdl):
     db = Db()
     ytc = YtCommunicator()
 
     while True:
         channels = db.get_all_channels()
         for channel in channels:
-            print(f"[{datetime.now()}] - YtC - Getting channel {channel.channel_name} ({channel.channel_id}) videos")
-            videos = ytc.get_videos(channel)
-            vids = [x[1] for x in filter(lambda x: x[0], [db.check_if_vid_exist_else_add(v) for v in videos])]
-            print(f"[{datetime.now()}] - YtC - Got {len(vids)} new videos")
+            try:
+                print(f"[{datetime.now()}] - YtC - Getting channel {channel.channel_name} ({channel.channel_id}) videos")
+                videos = ytc.get_videos(channel)
+                vids = [x[1] for x in filter(lambda x: x[0], [db.check_if_vid_exist_else_add(v) for v in videos])]
+                for v in vids:
+                    _create_status(db, v, "Discovered video.", obj.VidStatus.FETCHED)
+                print(f"[{datetime.now()}] - YtC - Got {len(vids)} new videos")
 
-            for v in vids:
-                q_out_ytdl.put(v)
-                q_out_sb.put(v)
+                q_out_ytdl.put(vids)
+            except Exception as e:
+                _create_status(db, obj.Video(None,"-1",None,None,None,None), f"[channel {channel.channel_id}] {e}", obj.VidStatus.FETCHING_ERROR)
 
         # if config.DEVELOPMENT:
         #     ytc.delay = 10
         print(f"[{datetime.now()}] - YtC - Sleeping for {ytc.delay}s")
         time.sleep(ytc.delay)
-
 
 
 if __name__ == "__main__":
@@ -126,11 +132,9 @@ if __name__ == "__main__":
 
     q1 = Queue()
     q2 = Queue()
-    t = Thread(target=YtCThread, args=(q1,q2))
+    t = Thread(target=YtCThread, args=(q1, q2))
     t.start()
     print("sleep stop")
-
-
 
     print("Got first")
     while not q1.empty():

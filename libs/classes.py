@@ -23,11 +23,19 @@ class SponsorTime:
 class Video:
     id: int
     video_id: str
-    status: str
     downloaded_path: str
+    downloaded_path_subs: str
     sponsor_times: list
     latest_sponsortime_at: datetime.datetime
 
+@dataclass
+class Status:
+    video_id: str
+    added_on: str
+    thread: str
+    message: str
+    id: int = None
+    keyword: str = None
 
 @dataclass
 class Channel:
@@ -46,3 +54,4 @@ class VidStatus:
     CUTTING = "CUTTING"  # cutting video
     DONE = "DONE"
     ERROR_DOWNLOADING = "ERROR_DOWNLOADING"
+    FETCHING_ERROR="FETCHING_ERROR"

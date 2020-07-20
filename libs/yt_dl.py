@@ -2,7 +2,7 @@ from youtube_dl import YoutubeDL
 import libs.classes as obj
 from libs.sqlite_interface import Db
 import time
-import config
+from libs import config
 import os
 import mimetypes
 # import subprocess
@@ -18,6 +18,10 @@ class ytdl_logger(object):
 
     def error(self, msg):
         print(msg)
+
+def _create_status(db,v,message,keyword=None):
+    db.create_primitive(obj.Status, obj.Status(v.video_id, str(datetime.now()), "YtDl",
+                                               message,keyword=keyword))
 
 
 def download(vid: obj.Video):
@@ -52,6 +56,8 @@ def download(vid: obj.Video):
 
 def find_filename(video: obj.Video):
     files_w_id = []
+    vid_file = None
+    sub_file = None
     for root, folder, files in os.walk(config.OUTPUT_DIR, topdown=False):
         for name in files:
             if name.find(f"[{video.video_id}]") != -1:
@@ -59,7 +65,11 @@ def find_filename(video: obj.Video):
     for f in files_w_id:
         mimetype = mimetypes.guess_type(f)[0]
         if mimetype and mimetype.find("video") != -1:
-            return f
+            vid_file = f
+        elif len(list(filter(lambda x: x=="en",os.path.basename(f).split(".")))) > 0:
+            sub_file = f
+    return vid_file,sub_file
+
 
 
 
@@ -69,35 +79,40 @@ def YtDlThread(in_q, out_q):
         vid_files = in_q.get()
 
         for v in vid_files:
-            v.status = obj.VidStatus.DOWNLOADING
-            db.update_video(v)
+
+            _create_status(db, v, "Started downloading video.",obj.VidStatus.DOWNLOADING)
             try:
 
                 print(f"[{datetime.now()}] - YtDl - Getting video {v.video_id}")
-
                 download(v)
-                v.status = obj.VidStatus.FINISHED_DOWNLOADING
+                _create_status(db, v, "Finished downloading video.",obj.VidStatus.FINISHED_DOWNLOADING)
 
-                v.downloaded_path = find_filename(v)
+                v.downloaded_path, v.downloaded_path_subs = find_filename(v)
                 print(f"[{datetime.now()}] - YtDl - Video {v.video_id} is stored in {v.downloaded_path}")
 
-
+                db.update_video(v)
+                out_q.put(v)
             except Exception as e:
                 print(f"EXCEPTION - [{datetime.now()}] - YtDl - ", e)
-                v.status = obj.VidStatus.ERROR_DOWNLOADING + " " + str(e)
-            db.update_video(v)
-            out_q.put(v)
+
+                _create_status(db, v, str(e),keyword=obj.VidStatus.ERROR_DOWNLOADING)
+                if config.DEVELOPMENT:
+                    time.sleep(1)
+                else:
+                    time.sleep(60)
+                in_q.put([v,])
+
+
 
 
 if __name__ == "__main__":
     from queue import Queue
     from threading import Thread
 
-    db = Db(create_new=True)
-    v1 = db.create_video(
-        obj.Video(None, "HeUietgDuVc", "FETCHED", None, [obj.SponsorTime(None, "123", "13", "12", 51), ], None))
-    v2 = db.create_video(
-        obj.Video(None, "LtlyeDAJR7A", "FETCHED", None, [obj.SponsorTime(None, "123", "13", "12", 51), ], None))
+    db = Db()
+    v1 = db.get_video("HeUietgDuVc")
+
+    v2 = db.get_video("W9pvsDsDi1Y")
 
     q1 = Queue()
     q1.put([v1, ])
