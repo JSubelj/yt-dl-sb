@@ -7,7 +7,7 @@ import os
 import mimetypes
 # import subprocess
 from  datetime import datetime
-
+import asstosrt
 
 class ytdl_logger(object):
     def debug(self, msg):
@@ -88,6 +88,20 @@ def YtDlThread(in_q, out_q):
                 _create_status(db, v, "Finished downloading video.",obj.VidStatus.FINISHED_DOWNLOADING)
 
                 v.downloaded_path, v.downloaded_path_subs = find_filename(v)
+                if v.downloaded_path_subs.endswith("ass") or v.downloaded_path_subs.endswith("ssa"):
+                    # convert subtitles to srt
+                    ass_file = open(v.downloaded_path_subs)
+                    srt_str = asstosrt.convert(ass_file)
+                    base = os.path.basename(v.downloaded_path_subs)
+                    folder = os.path.dirname(v.downloaded_path_subs)
+                    "".join(base.split(".")[:-1])
+                    base+=".srt"
+                    os.unlink(v.downloaded_path_subs)
+                    v.downloaded_path_subs = os.path.join(folder,base)
+                    with open(v.downloaded_path_subs,"w") as f:
+                        f.write(srt_str)
+
+
                 print(f"[{datetime.now()}] - YtDl - Video {v.video_id} is stored in {v.downloaded_path}")
 
                 db.update_video(v)
