@@ -8,8 +8,10 @@ _default_values = {
     "TMP_DIR": os.path.join(os.getcwd(),"tmp"),
     "REMOVE_SPONSORED": False
 }
-
-_cnf = json.load(open(os.path.join(os.getcwd(),"config.json"),"r"))
+try:
+    _cnf = json.load(open(os.path.join(os.getcwd(),"config.json"),"r"))
+except:
+    _cnf = {"FFMPEG_BIN":"None"}
 
 DEVELOPMENT = _cnf.get("DEVELOPMENT", _default_values["DEVELOPMENT"])
 TIME_WATCHING_FOR_SPONSORBLOCK_MIN = _cnf.get("TIME_WATCHING_FOR_SPONSORBLOCK_MIN", _default_values["TIME_WATCHING_FOR_SPONSORBLOCK_MIN"])

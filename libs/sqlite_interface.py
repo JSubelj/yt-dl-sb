@@ -105,7 +105,6 @@ class Db:
         return ch
 
     def update_last_fetched(self, ch: obj.Channel):
-        # TODO: datetime to current timezone!
         self.c.execute("update channels set last_fetched=? where channel_id=?",
                        (str(datetime.datetime.now()), ch.channel_id))
 
