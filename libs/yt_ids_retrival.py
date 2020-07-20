@@ -12,6 +12,9 @@ from datetime import datetime, timedelta
 from libs.sqlite_interface import Db
 import pytz
 import time
+import re
+import libs.config as config
+from libs.youtube_parser import get_video_title
 
 _pacific_tz = pytz.timezone("US/Pacific")
 
@@ -85,12 +88,18 @@ class YtCommunicator(metaclass=obj.Singleton):
         request = self.youtube.search().list(
             part="id",
             channelId=channel.channel_id,
-            maxResults=5,
+            maxResults=config.NUMBER_OF_YT_RESULTS,
             order="date"
         )
         response = request.execute()
         self.fetched += 1
-        vids = [obj.Video(None, i["id"]["videoId"], None, None, None, None) for i in response["items"]]
+        ignore_regex = [re.compile(pattern) for pattern in config.IGNORE_REGEX]
+        for i in response["items"]:
+            i["video_title"] = get_video_title(i["id"]["videoId"])
+
+        #[print(i["snippet"]["title"]) for i in response["items"] if all([r.match(i["snippet"]["title"]) is None for r in ignore_regex])]
+        vids = [obj.Video(None, i["id"]["videoId"], None, None, None, None) for i in response["items"] if all([r.match(i["video_title"]) is None for r in ignore_regex])]
+
 
         return vids
 
@@ -103,7 +112,8 @@ def YtCThread(q_out_ytdl):
         channels = db.get_all_channels()
         for channel in channels:
             try:
-                print(f"[{datetime.now()}] - YtC - Getting channel {channel.channel_name} ({channel.channel_id}) videos")
+                print(
+                    f"[{datetime.now()}] - YtC - Getting channel {channel.channel_name} ({channel.channel_id}) videos")
                 videos = ytc.get_videos(channel)
                 vids = [x[1] for x in filter(lambda x: x[0], [db.check_if_vid_exist_else_add(v) for v in videos])]
                 for v in vids:
@@ -112,7 +122,8 @@ def YtCThread(q_out_ytdl):
 
                 q_out_ytdl.put(vids)
             except Exception as e:
-                _create_status(db, obj.Video(None,"-1",None,None,None,None), f"[channel {channel.channel_id}] {e}", obj.VidStatus.FETCHING_ERROR)
+                _create_status(db, obj.Video(None, "-1", None, None, None, None), f"[channel {channel.channel_id}] {e}",
+                               obj.VidStatus.FETCHING_ERROR)
 
         # if config.DEVELOPMENT:
         #     ytc.delay = 10

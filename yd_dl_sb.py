@@ -1,5 +1,5 @@
 import argparse
-from libs import sqlite_interface
+from libs.sqlite_interface import Db
 from libs import channel_adder
 from threading import Thread
 from queue import Queue
@@ -10,12 +10,13 @@ from libs.yt_dl import YtDlThread
 from libs.sponsor_cutter import SCThread
 import libs.config as cnf
 
+
 def parser():
     p = argparse.ArgumentParser(description="Looks up videos of subscribed channels, downloads them and cuts sponsors out of the video.")
     p.add_argument("-a","--add-channel", dest='channel_name')
     return p
 if __name__=="__main__":
-    db = sqlite_interface.Db()
+    db = Db()
     args = parser().parse_args()
     if args.channel_name:
         channel_adder.add_channel(args.channel_name)

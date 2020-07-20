@@ -36,6 +36,7 @@ def _create_status(db, v, message, keyword=None):
 #     ffmpeg_filter += f"concat=n={segs}:v=1:a=1[outv][outa]\" -map [outv] -map [outa]"
 #     return ffmpeg_filter
 
+# TODO: correct
 def cutting_subs(v: obj.Video):
     # 0. sub starts before block
     # 1. sub starts before block and ends in block
@@ -43,13 +44,14 @@ def cutting_subs(v: obj.Video):
     # 3. sub starts in the block and ends outside the block
     if not v.downloaded_path_subs:
         return
-    parsed_subs = srt.parse(open(v.downloaded_path_subs).read())
+    parsed_subs = srt.sort_and_reindex(srt.parse(open(v.downloaded_path_subs).read()))
 
     sponsor_times_sorted = list(sorted(v.sponsor_times, key=lambda x: x.start))
     sponsor_blocks = [(timedelta(seconds=st.start), timedelta(seconds=st.stop)) for st in sponsor_times_sorted]
     current_inx = 0
     split_blocks = []
     blocks = []
+    print(parsed_subs)
     for i, s in enumerate(parsed_subs):
         if current_inx >= len(sponsor_blocks):
             blocks.append(s)
@@ -112,15 +114,17 @@ def _generate_cutting_commands(video: obj.Video):
     counter = 0
     # TODO: check if avoid negative ts corrects
     commands.append(
-        f"{config.FFMPEG_BIN} -y -i \"{video.downloaded_path}\" -to {first} -c copy -avoid_negative_ts make_zero \"{path_name(counter)}\"")
+        f"{config.FFMPEG_BIN} -y -loglevel quiet -i \"{video.downloaded_path}\" -to {first} -c copy -avoid_negative_ts make_zero \"{path_name(counter)}\"")
     counter += 1
     end = skiping_times.pop()
 
     for skiping_time, stopping_time in zip(skiping_times, stopping_times):
         commands.append(
-            f"{config.FFMPEG_BIN} -y -i \"{video.downloaded_path}\" -ss {skiping_time} -to {stopping_time} -c copy -avoid_negative_ts make_zero \"{path_name(counter)}\"")
+            f"{config.FFMPEG_BIN} -y -loglevel quiet -i \"{video.downloaded_path}\" -ss {skiping_time} -to {stopping_time} -c copy -avoid_negative_ts make_zero \"{path_name(counter)}\"")
+        counter += 1
+
     commands.append(
-        f"{config.FFMPEG_BIN} -y -i \"{video.downloaded_path}\" -ss {end} -c copy -avoid_negative_ts make_zero \"{path_name(counter)}\"")
+        f"{config.FFMPEG_BIN} -y -loglevel quiet -i \"{video.downloaded_path}\" -ss {end} -c copy -avoid_negative_ts make_zero \"{path_name(counter)}\"")
     counter += 1
     return commands, [path_name(i) for i in range(counter)]
 
@@ -131,6 +135,7 @@ def _rename_spon_file(video: obj.Video):
 
     base = base.replace("SPON -", "").replace(f" [{video.video_id}]", "")
     return os.path.join(dirname, base)
+
 
 def _rename_spon_file_subs(video: obj.Video):
     base = os.path.basename(video.downloaded_path_subs)
@@ -143,7 +148,7 @@ def _rename_spon_file_subs(video: obj.Video):
 def cut(video: obj.Video):
     commands, tmp_files = _generate_cutting_commands(video)
     print(f"[{datetime.datetime.now()}] - SC - Cutting useful segments of video ({video.video_id})")
-    with Pool(5) as p:
+    with Pool(len(commands)) as p:
         p.map(ffmpeg_caller, commands)
     tmp_inputs_txt = os.path.join(config.TMP_DIR, f"{video.video_id}_inputs.txt")
     with open(tmp_inputs_txt, "w") as f:
@@ -151,14 +156,14 @@ def cut(video: obj.Video):
 
     print(f"[{datetime.datetime.now()}] - SC - Merging video into end result ({video.video_id})")
     ffmpeg_caller(
-        f"{config.FFMPEG_BIN} -y -f concat -safe 0 -i \"{tmp_inputs_txt}\"  -c copy \"{_rename_spon_file(video)}\"")
+        f"{config.FFMPEG_BIN} -y -loglevel quiet -f concat -safe 0 -i \"{tmp_inputs_txt}\"  -c copy \"{_rename_spon_file(video)}\"")
     for tmp in tmp_files:
         os.remove(tmp)
     os.remove(tmp_inputs_txt)
     print(f"[{datetime.datetime.now()}] - SC - Video merged ({video.video_id})")
-    if video.downloaded_path_subs:
-        with open(_rename_spon_file_subs(video),"w") as f:
-            f.write(cutting_subs(video))
+    # if video.downloaded_path_subs:
+    #     with open(_rename_spon_file_subs(video),"w") as f:
+    #         f.write(cutting_subs(video))
 
     if config.REMOVE_SPONSORED:
         os.remove(video.downloaded_path)
@@ -202,8 +207,7 @@ if __name__ == "__main__":
     #
 
     with open("tmp1.srt", "w") as f:
-        f.write( cutting_subs(obj.Video(None, "fdsa", None, r"C:\Users\jan.subelj\Documents\personal\yt-dl-sb\tmp.srt", [
-        obj.SponsorTime(None, "fdsa", 4 * 60, 7 * 60, None),
-        obj.SponsorTime(None, "fdsa", 8 * 60, 9 * 60, None)
-    ], None)))
-
+        f.write(cutting_subs(obj.Video(None, "fdsa", None, r"C:\Users\jan.subelj\Documents\personal\yt-dl-sb\tmp.srt", [
+            obj.SponsorTime(None, "fdsa", 4 * 60, 7 * 60, None),
+            obj.SponsorTime(None, "fdsa", 8 * 60, 9 * 60, None)
+        ], None)))

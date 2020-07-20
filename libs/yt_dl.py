@@ -8,6 +8,9 @@ import mimetypes
 # import subprocess
 from  datetime import datetime
 import asstosrt
+from libs.vtt_to_srt import vtt_to_srt
+from threading import Thread
+import queue
 
 class ytdl_logger(object):
     def debug(self, msg):
@@ -29,8 +32,8 @@ def download(vid: obj.Video):
     ydl_opts = {
         "writesubtitles": True,
         "subtitlesformat": "srt",
-        "outtmpl": os.path.join(config.OUTPUT_DIR, "SPON - %(uploader)s - %(title)s [%(id)s].%(ext)s"),
-        "format": "bestvideo+bestaudio",
+        "outtmpl": os.path.join(config.OUTPUT_DIR, "%(uploader)s/SPON - %(uploader)s - %(title)s [%(id)s].%(ext)s"),
+        "format": config.DOWNLOAD_QUALITY,
         "ffmpeg_location": config.FFMPEG_BIN,
         "logger": ytdl_logger(),
         # "test": True,
@@ -70,58 +73,74 @@ def find_filename(video: obj.Video):
             sub_file = f
     return vid_file,sub_file
 
-
-
-
-def YtDlThread(in_q, out_q):
+def MultiDownloadThread(v, in_q, out_q):
     db = Db()
+    _create_status(db, v, "Started downloading video.", obj.VidStatus.DOWNLOADING)
+    try:
+        print(f"[{datetime.now()}] - YtDl - Getting video {v.video_id}")
+        download(v)
+        _create_status(db, v, "Finished downloading video.", obj.VidStatus.FINISHED_DOWNLOADING)
+
+        v.downloaded_path, v.downloaded_path_subs = find_filename(v)
+        if v.downloaded_path_subs.endswith("ass") or v.downloaded_path_subs.endswith("ssa"):
+            print(f"[{datetime.now()}] - YtDl - Changing  {v.video_id}")
+
+            # convert subtitles to srt
+            ass_file = open(v.downloaded_path_subs)
+            srt_str = asstosrt.convert(ass_file)
+            base = os.path.basename(v.downloaded_path_subs)
+            folder = os.path.dirname(v.downloaded_path_subs)
+
+            base = ".".join(base.split(".")[:-1]) + ".srt"
+            os.unlink(v.downloaded_path_subs)
+            v.downloaded_path_subs = os.path.join(folder, base)
+            with open(v.downloaded_path_subs, "w") as f:
+                f.write(srt_str)
+        if v.downloaded_path_subs.endswith("vtt"):
+            vtt_to_srt(v.downloaded_path_subs)
+            base = os.path.basename(v.downloaded_path_subs)
+            folder = os.path.dirname(v.downloaded_path_subs)
+            base = ".".join(base.split(".")[:-1]) + ".srt"
+            os.unlink(v.downloaded_path_subs)
+            v.downloaded_path_subs = os.path.join(folder, base)
+
+        print(f"[{datetime.now()}] - YtDl - Video {v.video_id} is stored in {v.downloaded_path}")
+
+        db.update_video(v)
+        out_q.put(v)
+    except Exception as e:
+        print(f"EXCEPTION - [{datetime.now()}] - YtDl - ", e)
+
+        _create_status(db, v, str(e), keyword=obj.VidStatus.ERROR_DOWNLOADING)
+        if config.DEVELOPMENT:
+            time.sleep(1)
+        else:
+            time.sleep(60)
+        in_q.put([v, ])
+
+
+def YtDlThread(in_q : queue.Queue, out_q: queue.Queue):
+    threads = []
     while True:
-        vid_files = in_q.get()
+        try:
+            vid_files = in_q.get_nowait()
+            for v in vid_files:
+                q_in_t = queue.Queue()
+                q_out_t = queue.Queue()
+                t = Thread(target=MultiDownloadThread,args=(v,q_in_t,q_out_t))
+                t.start()
+                threads.append((t,q_in_t,q_out_t))
+        except queue.Empty:
+            pass
 
-        for v in vid_files:
+        for i, (t,q_in_t,q_out_t) in enumerate(threads):
+            raise NotImplemented
 
-            _create_status(db, v, "Started downloading video.",obj.VidStatus.DOWNLOADING)
-            try:
-
-                print(f"[{datetime.now()}] - YtDl - Getting video {v.video_id}")
-                download(v)
-                _create_status(db, v, "Finished downloading video.",obj.VidStatus.FINISHED_DOWNLOADING)
-
-                v.downloaded_path, v.downloaded_path_subs = find_filename(v)
-                if v.downloaded_path_subs.endswith("ass") or v.downloaded_path_subs.endswith("ssa"):
-                    # convert subtitles to srt
-                    ass_file = open(v.downloaded_path_subs)
-                    srt_str = asstosrt.convert(ass_file)
-                    base = os.path.basename(v.downloaded_path_subs)
-                    folder = os.path.dirname(v.downloaded_path_subs)
-                    "".join(base.split(".")[:-1])
-                    base+=".srt"
-                    os.unlink(v.downloaded_path_subs)
-                    v.downloaded_path_subs = os.path.join(folder,base)
-                    with open(v.downloaded_path_subs,"w") as f:
-                        f.write(srt_str)
-
-
-                print(f"[{datetime.now()}] - YtDl - Video {v.video_id} is stored in {v.downloaded_path}")
-
-                db.update_video(v)
-                out_q.put(v)
-            except Exception as e:
-                print(f"EXCEPTION - [{datetime.now()}] - YtDl - ", e)
-
-                _create_status(db, v, str(e),keyword=obj.VidStatus.ERROR_DOWNLOADING)
-                if config.DEVELOPMENT:
-                    time.sleep(1)
-                else:
-                    time.sleep(60)
-                in_q.put([v,])
 
 
 
 
 if __name__ == "__main__":
-    from queue import Queue
-    from threading import Thread
 
     db = Db()
     v1 = db.get_video("HeUietgDuVc")
