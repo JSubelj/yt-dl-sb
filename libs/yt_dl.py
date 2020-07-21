@@ -133,25 +133,41 @@ def YtDlThread(in_q : queue.Queue, out_q: queue.Queue):
         except queue.Empty:
             pass
 
+        threads_to_kill = []
         for i, (t,q_in_t,q_out_t) in enumerate(threads):
-            raise NotImplemented
-
+            try:
+                while not q_in_t.empty():
+                    vid_file = q_in_t.get_nowait()
+                    in_q.put(vid_file)
+            except queue.Empty:
+                pass
+            try:
+                while not q_out_t.empty():
+                    vid_file = q_out_t.get_nowait()
+                    out_q.put(vid_file)
+            except queue.Empty:
+                pass
+            if not t.is_alive():
+                t.join()
+                threads_to_kill.append(i)
+        for inx in threads_to_kill:
+            del threads[inx]
 
 
 
 
 if __name__ == "__main__":
-
-    db = Db()
-    v1 = db.get_video("HeUietgDuVc")
-
-    v2 = db.get_video("W9pvsDsDi1Y")
-
-    q1 = Queue()
-    q1.put([v1, ])
-    q2 = Queue()
-    t = Thread(target=YtDlThread, args=(q1, q2))
-    t.start()
-    time.sleep(10)
-    q1.put([v2, ])
-    # download(obj.Video(None,"LtlyeDAJR7A",None,None,None,None))
+    vtt_to_srt("tmp.vtt")
+    # db = Db()
+    # v1 = db.get_video("HeUietgDuVc")
+    #
+    # v2 = db.get_video("W9pvsDsDi1Y")
+    #
+    # q1 = queue.Queue()
+    # q1.put([v1, ])
+    # q2 = queue.Queue()
+    # t = Thread(target=YtDlThread, args=(q1, q2))
+    # t.start()
+    # time.sleep(10)
+    # q1.put([v2, ])
+    # # download(obj.Video(None,"LtlyeDAJR7A",None,None,None,None))

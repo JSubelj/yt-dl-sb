@@ -16,6 +16,7 @@ def convert_content(file_contents):
     replacement = re.sub(r"(\d\d:\d\d).(\d\d\d) --> (\d\d:\d\d).(\d\d\d)(?:[ \-\w]+:[\w\%\d:]+)*\n", r"\1,\2 --> \3,\4\n", replacement)
     replacement = re.sub(r"(\d\d).(\d\d\d) --> (\d\d).(\d\d\d)(?:[ \-\w]+:[\w\%\d:]+)*\n", r"\1,\2 --> \3,\4\n", replacement)
     replacement = re.sub(r"WEBVTT\n", "", replacement)
+    replacement = re.sub(r"WEBVTT FILE\n", "", replacement)
     replacement = re.sub(r"Kind:[ \-\w]+\n", "", replacement)
     replacement = re.sub(r"Language:[ \-\w]+\n", "", replacement)
     replacement = re.sub(r"<c[.\w\d]*>", "", replacement)

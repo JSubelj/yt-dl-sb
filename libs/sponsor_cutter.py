@@ -44,7 +44,7 @@ def cutting_subs(v: obj.Video):
     # 3. sub starts in the block and ends outside the block
     if not v.downloaded_path_subs:
         return
-    parsed_subs = srt.sort_and_reindex(srt.parse(open(v.downloaded_path_subs).read()))
+    parsed_subs = srt.parse(open(v.downloaded_path_subs).read())
 
     sponsor_times_sorted = list(sorted(v.sponsor_times, key=lambda x: x.start))
     sponsor_blocks = [(timedelta(seconds=st.start), timedelta(seconds=st.stop)) for st in sponsor_times_sorted]
@@ -161,9 +161,9 @@ def cut(video: obj.Video):
         os.remove(tmp)
     os.remove(tmp_inputs_txt)
     print(f"[{datetime.datetime.now()}] - SC - Video merged ({video.video_id})")
-    # if video.downloaded_path_subs:
-    #     with open(_rename_spon_file_subs(video),"w") as f:
-    #         f.write(cutting_subs(video))
+    if video.downloaded_path_subs:
+        with open(_rename_spon_file_subs(video),"w") as f:
+            f.write(cutting_subs(video))
 
     if config.REMOVE_SPONSORED:
         os.remove(video.downloaded_path)
@@ -198,16 +198,19 @@ def SCThread(q_in: Queue):
 
 
 if __name__ == "__main__":
-    db = Db()
-    # import threading
-    # qin=Queue()
-    # qin.put(db.get_video("ipFhGlt8Qkw"))
-    # t=threading.Thread(target=SCThread,args=(qin,))
-    # t.start()
-    #
+    p = srt.parse(open("tmp.srt").read())
+    print(list(p))
 
-    with open("tmp1.srt", "w") as f:
-        f.write(cutting_subs(obj.Video(None, "fdsa", None, r"C:\Users\jan.subelj\Documents\personal\yt-dl-sb\tmp.srt", [
-            obj.SponsorTime(None, "fdsa", 4 * 60, 7 * 60, None),
-            obj.SponsorTime(None, "fdsa", 8 * 60, 9 * 60, None)
-        ], None)))
+    # db = Db()
+    # # import threading
+    # # qin=Queue()
+    # # qin.put(db.get_video("ipFhGlt8Qkw"))
+    # # t=threading.Thread(target=SCThread,args=(qin,))
+    # # t.start()
+    # #
+    #
+    # with open("tmp1.srt", "w") as f:
+    #     f.write(cutting_subs(obj.Video(None, "fdsa", None, r"C:\Users\jan.subelj\Documents\personal\yt-dl-sb\tmp.srt", [
+    #         obj.SponsorTime(None, "fdsa", 4 * 60, 7 * 60, None),
+    #         obj.SponsorTime(None, "fdsa", 8 * 60, 9 * 60, None)
+    #     ], None)))
