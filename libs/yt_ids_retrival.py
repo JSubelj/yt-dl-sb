@@ -9,12 +9,14 @@ import googleapiclient.errors
 import secret
 import libs.classes as obj
 from datetime import datetime, timedelta
+import datetime as dt
 from libs.sqlite_interface import Db
 import pytz
 import time
 import re
 import libs.config as config
 from libs.youtube_parser import get_video_title
+import schedule
 
 _pacific_tz = pytz.timezone("US/Pacific")
 
@@ -97,60 +99,100 @@ class YtCommunicator(metaclass=obj.Singleton):
         for i in response["items"]:
             i["video_title"] = get_video_title(i["id"]["videoId"])
 
-        #[print(i["snippet"]["title"]) for i in response["items"] if all([r.match(i["snippet"]["title"]) is None for r in ignore_regex])]
-        vids = [obj.Video(None, i["id"]["videoId"], None, None, None, None) for i in response["items"] if all([r.match(i["video_title"]) is None for r in ignore_regex])]
-
+        # [print(i["snippet"]["title"]) for i in response["items"] if all([r.match(i["snippet"]["title"]) is None for r in ignore_regex])]
+        vids = [obj.Video(None, i["id"]["videoId"], None, None, None, None) for i in response["items"] if
+                all([r.match(i["video_title"]) is None for r in ignore_regex])]
 
         return vids
 
 
-def YtCThread(q_out_ytdl):
+def _parse_time_string_to_time(time_string: str):
+    return datetime.strptime(time_string, "%H:%M") - datetime.strptime("15:15", "%H:%M")
+
+
+def _parse_time_string_to_sec(time_string: str):
+    "d=1,h=1,m=1,s=1"
+    diffrent_times = time_string.split(",")
+    seconds = 0
+    for t in diffrent_times:
+        if t.startswith("d"):
+            seconds += float(t.split("=")[1]) * 24 * 60 * 60
+        if t.startswith("h"):
+            seconds += float(t.split("=")[1]) * 60 * 60
+        if t.startswith("m"):
+            seconds += float(t.split("=")[1]) * 60
+        if t.startswith("s"):
+            seconds += float(t.split("=")[1])
+    return seconds
+
+
+
+def YtCWorker(q_out_ytdl):
     db = Db()
     ytc = YtCommunicator()
 
-    while True:
-        channels = db.get_all_channels()
-        for channel in channels:
-            try:
-                print(
-                    f"[{datetime.now()}] - YtC - Getting channel {channel.channel_name} ({channel.channel_id}) videos")
-                videos = ytc.get_videos(channel)
-                vids = [x[1] for x in filter(lambda x: x[0], [db.check_if_vid_exist_else_add(v) for v in videos])]
-                for v in vids:
-                    _create_status(db, v, "Discovered video.", obj.VidStatus.FETCHED)
-                print(f"[{datetime.now()}] - YtC - Got {len(vids)} new videos")
+    channels = db.get_all_channels()
+    for channel in channels:
+        try:
+            print(
+                f"[{datetime.now()}] - YtC - Getting channel {channel.channel_name} ({channel.channel_id}) videos")
+            videos = ytc.get_videos(channel)
+            vids = [x[1] for x in filter(lambda x: x[0], [db.check_if_vid_exist_else_add(v) for v in videos])]
+            for v in vids:
+                _create_status(db, v, "Discovered video.", obj.VidStatus.FETCHED)
+            print(f"[{datetime.now()}] - YtC - Got {len(vids)} new videos")
 
-                q_out_ytdl.put(vids)
-            except Exception as e:
-                _create_status(db, obj.Video(None, "-1", None, None, None, None), f"[channel {channel.channel_id}] {e}",
-                               obj.VidStatus.FETCHING_ERROR)
+            q_out_ytdl.put(vids)
+        except Exception as e:
+            _create_status(db, obj.Video(None, "-1", None, None, None, None), f"[channel {channel.channel_id}] {e}",
+                           obj.VidStatus.FETCHING_ERROR)
 
-        # if config.DEVELOPMENT:
-        #     ytc.delay = 10
-        print(f"[{datetime.now()}] - YtC - Sleeping for {ytc.delay}s")
-        time.sleep(ytc.delay)
+    # if config.DEVELOPMENT:
+    #     ytc.delay = 10
+
+def YtCThread(q_out_ytdl):
+    if type(config.UPDATE_TIMES) == list:
+        for t in config.UPDATE_TIMES:
+            schedule.every().day.at(t).do(YtCThread,q_out_ytdl)
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
+
+    elif type(config.UPDATE_TIMES) == str:
+        while True:
+            YtCWorker(q_out_ytdl)
+            time.sleep(_parse_time_string_to_sec(config.UPDATE_TIMES))
+
+
+# print(f"[{datetime.now()}] - YtC - Sleeping for {ytc.delay}s")
+# if type(config.UPDATE_TIMES) == list:
+#     time.sleep(1)
+# elif type(config.UPDATE_TIMES) == str:
+#     time.sleep(_parse_time_string_to_sec(config.UPDATE_TIMES))
+#     YtCThread(q_out_ytdl)
 
 
 if __name__ == "__main__":
-    # ytc = YtCommunicator()
-    # print(ytc.calculate_waiting_time_between_lookups())
-    # print(ytc.get_videos(obj.Channel(None, "UCeeFfhMcJa1kjtfZAGskOCA", "bla", None)))
-    # print(ytc.get_channel_id("LTT"))
-    # ytc.get_subscriptions()
-
-    from queue import Queue
-    from threading import Thread
-
-    q1 = Queue()
-    q2 = Queue()
-    t = Thread(target=YtCThread, args=(q1, q2))
-    t.start()
-    print("sleep stop")
-
-    print("Got first")
-    while not q1.empty():
-        print(q1.get())
-    print("Got second")
-    print(q2.get())
-    while not q2.empty():
-        print(q2.get())
+    print(_parse_time_string_to_time("13:45"))
+    # # ytc = YtCommunicator()
+    # # print(ytc.calculate_waiting_time_between_lookups())
+    # # print(ytc.get_videos(obj.Channel(None, "UCeeFfhMcJa1kjtfZAGskOCA", "bla", None)))
+    # # print(ytc.get_channel_id("LTT"))
+    # # ytc.get_subscriptions()
+    #
+    # from queue import Queue
+    # from threading import Thread
+    #
+    # q1 = Queue()
+    # q2 = Queue()
+    # t = Thread(target=YtCThread, args=(q1, q2))
+    # t.start()
+    # print("sleep stop")
+    #
+    # print("Got first")
+    # while not q1.empty():
+    #     print(q1.get())
+    # print("Got second")
+    # print(q2.get())
+    # while not q2.empty():
+    #     print(q2.get())

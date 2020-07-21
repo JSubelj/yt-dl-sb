@@ -9,7 +9,8 @@ _default_values = {
     "REMOVE_SPONSORED": False,
     "DOWNLOAD_QUALITY": "bestvideo+bestaudio",
     "NUMBER_OF_YT_RESULTS": 5,
-    "IGNORE_REGEX": []
+    "IGNORE_REGEX": [],
+    "UPDATE_TIMES": ["00:00"] #"h=1,m=1,s=1"
 }
 try:
     _cnf = json.load(open(os.path.join(os.getcwd(),"config.json"),"r"))
@@ -29,3 +30,4 @@ REMOVE_SPONSORED = _cnf.get("REMOVE_SPONSORED", _default_values["REMOVE_SPONSORE
 IGNORE_REGEX = _cnf.get("IGNORE_REGEX",_default_values["IGNORE_REGEX"])
 DOWNLOAD_QUALITY = _cnf.get("DOWNLOAD_QUALITY",_default_values["DOWNLOAD_QUALITY"])
 NUMBER_OF_YT_RESULTS = _cnf.get("NUMBER_OF_YT_RESULTS",_default_values["NUMBER_OF_YT_RESULTS"])
+UPDATE_TIMES = _cnf.get("UPDATE_TIMES",_default_values["UPDATE_TIMES"])
