@@ -15,10 +15,11 @@ import pytz
 import time
 import re
 import libs.config as config
-from libs.youtube_parser import get_video_title
+from libs.youtube_parser import get_videos as yp_get_videos
 import schedule
 
-_pacific_tz = pytz.timezone("US/Pacific")
+
+# _pacific_tz = pytz.timezone("US/Pacific")
 
 
 def _create_status(db, v, message, keyword=None):
@@ -26,38 +27,38 @@ def _create_status(db, v, message, keyword=None):
                                                message, keyword=keyword))
 
 
-class YtCommunicator(metaclass=obj.Singleton):
-    MAX_N_QUERIES = 10000
+# class YtCommunicator(metaclass=obj.Singleton):
+#     MAX_N_QUERIES = 10000
+#
+#     # TODO: add last updated
+#     def __init__(self):
+#         self.db = Db()
+        # api_service_name = "youtube"
+        # api_version = "v3"
+        # self.fetched = 0
+        # self.last_reset = datetime.now(_pacific_tz)
+        # self.delay = 60
+        # self.youtube = googleapiclient.discovery.build(
+        #     api_service_name, api_version, developerKey=secret.API_KEY)
 
-    # TODO: add last updated
-    def __init__(self):
-        self.db = Db()
-        api_service_name = "youtube"
-        api_version = "v3"
-        self.fetched = 0
-        self.last_reset = datetime.now(_pacific_tz)
-        self.delay = 60
-        self.youtube = googleapiclient.discovery.build(
-            api_service_name, api_version, developerKey=secret.API_KEY)
+    # def check_and_reset_quota(self):
+    #     if datetime.now(_pacific_tz).day > self.last_reset.day:
+    #         self.fetched = 0
+    #         self.last_reset = datetime.now(_pacific_tz)
 
-    def check_and_reset_quota(self):
-        if datetime.now(_pacific_tz).day > self.last_reset.day:
-            self.fetched = 0
-            self.last_reset = datetime.now(_pacific_tz)
-
-    def calculate_delay_between_lookups(self):
-        remaining_qs = YtCommunicator.MAX_N_QUERIES - self.fetched
-
-        midnight = datetime.now(_pacific_tz) \
-            .replace(hour=0, minute=0, second=0, microsecond=0) \
-            .astimezone(pytz.utc)
-        midnight = midnight + timedelta(days=1)
-        now = datetime.now(_pacific_tz).astimezone(pytz.utc)
-        remaining_seconds = (midnight - now).total_seconds()
-        num_of_channels = len(self.db.get_all_channels())
-        remaining_calls = remaining_qs / num_of_channels
-        delay = remaining_seconds / remaining_calls
-        return delay if delay > 60 else 60
+    # def calculate_delay_between_lookups(self):
+    #     remaining_qs = YtCommunicator.MAX_N_QUERIES - self.fetched
+    #
+    #     midnight = datetime.now(_pacific_tz) \
+    #         .replace(hour=0, minute=0, second=0, microsecond=0) \
+    #         .astimezone(pytz.utc)
+    #     midnight = midnight + timedelta(days=1)
+    #     now = datetime.now(_pacific_tz).astimezone(pytz.utc)
+    #     remaining_seconds = (midnight - now).total_seconds()
+    #     num_of_channels = len(self.db.get_all_channels())
+    #     remaining_calls = remaining_qs / num_of_channels
+    #     delay = remaining_seconds / remaining_calls
+    #     return delay if delay > 60 else 60
 
     # REQUIRES OAUTH
     # def get_subscriptions(self):
@@ -67,43 +68,51 @@ class YtCommunicator(metaclass=obj.Singleton):
     #     )
     #     print(request.execute())
 
-    def get_channel_id(self, channel_name):
-        request = self.youtube.search().list(
-            part="snippet",
-            q=channel_name,
-            type="channel"
-        )
-        response = request.execute()
-        return [{
-            "channel_name": c["snippet"]["title"],
-            "description": c["snippet"]["description"],
-            "channel_id": c["snippet"]["channelId"],
-            "thumbnail": c["snippet"]["thumbnails"]["default"]
-        } for c in response["items"]]
+    # def get_channel_id(self, channel_name):
+    #     request = self.youtube.search().list(
+    #         part="snippet",
+    #         q=channel_name,
+    #         type="channel"
+    #     )
+    #     response = request.execute()
+    #     return [{
+    #         "channel_name": c["snippet"]["title"],
+    #         "description": c["snippet"]["description"],
+    #         "channel_id": c["snippet"]["channelId"],
+    #         "thumbnail": c["snippet"]["thumbnails"]["default"]
+    #     } for c in response["items"]]
 
-    def get_videos(self, channel: obj.Channel):
-        self.check_and_reset_quota()
-        self.delay = self.calculate_delay_between_lookups()
-        #
-        # if not config.DEVELOPMENT:
-        #     time.sleep(self.delay)
-        request = self.youtube.search().list(
-            part="id",
-            channelId=channel.channel_id,
-            maxResults=config.NUMBER_OF_YT_RESULTS,
-            order="date"
-        )
-        response = request.execute()
-        self.fetched += 1
-        ignore_regex = [re.compile(pattern) for pattern in config.IGNORE_REGEX]
-        for i in response["items"]:
-            i["video_title"] = get_video_title(i["id"]["videoId"])
+    # def get_videos(self, channel: obj.Channel):
+    #     self.check_and_reset_quota()
+    #     self.delay = self.calculate_delay_between_lookups()
+    #     #
+    #     # if not config.DEVELOPMENT:
+    #     #     time.sleep(self.delay)
+    #     request = self.youtube.search().list(
+    #         part="id",
+    #         channelId=channel.channel_id,
+    #         maxResults=config.NUMBER_OF_YT_RESULTS,
+    #         order="date"
+    #     )
+    #     response = request.execute()
+    #     self.fetched += 1
+    #     ignore_regex = [re.compile(pattern) for pattern in config.IGNORE_REGEX]
+    #     for i in response["items"]:
+    #         i["video_title"] = get_video_title(i["id"]["videoId"])
+    #
+    #     # [print(i["snippet"]["title"]) for i in response["items"] if all([r.match(i["snippet"]["title"]) is None for r in ignore_regex])]
+    #     vids = [obj.Video(None, i["id"]["videoId"], None, None, None, None) for i in response["items"] if
+    #             all([r.match(i["video_title"]) is None for r in ignore_regex])]
+    #
+    #     return vids
 
-        # [print(i["snippet"]["title"]) for i in response["items"] if all([r.match(i["snippet"]["title"]) is None for r in ignore_regex])]
-        vids = [obj.Video(None, i["id"]["videoId"], None, None, None, None) for i in response["items"] if
-                all([r.match(i["video_title"]) is None for r in ignore_regex])]
+def get_videos(ch: obj.Channel):
+    videos = yp_get_videos(ch)
+    ignore_regex = [re.compile(pattern) for pattern in config.IGNORE_REGEX]
+    videos = [v for v in videos if all([r.match(v["title"]) is None for r in ignore_regex])]
+    videos = videos[:config.NUMBER_OF_YT_RESULTS]
+    return [obj.Video(None,v["videoId"], None, None, None, None) for v in videos]
 
-        return vids
 
 
 def _parse_time_string_to_time(time_string: str):
@@ -129,14 +138,13 @@ def _parse_time_string_to_sec(time_string: str):
 
 def YtCWorker(q_out_ytdl):
     db = Db()
-    ytc = YtCommunicator()
 
     channels = db.get_all_channels()
     for channel in channels:
         try:
             print(
                 f"[{datetime.now()}] - YtC - Getting channel {channel.channel_name} ({channel.channel_id}) videos")
-            videos = ytc.get_videos(channel)
+            videos = get_videos(channel)
             vids = [x[1] for x in filter(lambda x: x[0], [db.check_if_vid_exist_else_add(v) for v in videos])]
             for v in vids:
                 _create_status(db, v, "Discovered video.", obj.VidStatus.FETCHED)
