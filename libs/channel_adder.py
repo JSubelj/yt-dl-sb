@@ -1,17 +1,17 @@
-from libs.yt_ids_retrival import YtCommunicator
+from libs.youtube_parser import get_channel
 from libs.sqlite_interface import Db
 from libs.classes import Channel
 
 def add_channel(name):
-    ytc = YtCommunicator()
+
     db = Db()
-    channels = ytc.get_channel_id(name)
+    channels = get_channel(name)
     print("Channels found:")
     for inx,c in enumerate(channels):
-        print(f"\t{inx}. {c['channel_name']}: {c['description']} [https://youtube.com/channel/{c['channel_id']}]")
+        print(f"\t{inx}. {c['name']}: {c['description']} [https://youtube.com/channel/{c['channel_id']}]")
     channel_num = int(input("Enter a number of correct channel: "))
     ch = channels[channel_num]
-    db.create_channel(Channel(None, ch["channel_id"], ch["channel_name"], None))
+    db.create_channel(Channel(None, ch["channelId"], ch["name"], None))
 
 
 
