@@ -72,8 +72,9 @@ def get_info_from_channel_items(items):
 def get_channel(name):
     pattern = re.compile(r'window\["ytInitialData"\] = (.+?);')
 
-    content = requests.get(f"https://www.youtube.com/results?search_query={name}&sp=EgIQAg%253D%253D")
-    soup = bs(content.content, "html.parser")
+    # content = requests.get(f"https://www.youtube.com/results?search_query={name}&sp=EgIQAg%253D%253D")
+    # soup = bs(content.content, "html.parser")
+    soup = bs(open(r"C:\Users\jan.subelj\Documents\personal\yt-dl-sb\libs\\channels-test.html","r").read(), "html.parser")
     data = soup.find("script", text=pattern).contents[0]
     json_data = json.loads(pattern.search(data).group(1))
     items = _get_channel_items_from_json(json_data)

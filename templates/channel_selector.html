@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Channels</title>
+    <script>
+        function get_channels() {
+            console.log(document.getElementById("cn").value)
+            let request = new XMLHttpRequest();
+            request.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    // Typical action to be performed when the document is ready:
+                    let data = JSON.parse(request.responseText);
+                    let table = document.getElementById("table_channels")
+                    table.innerHTML = "";
+
+
+                    for (const d of data) {
+                        let tr = document.createElement("TR")
+                        tr.id = d.channelId
+
+                        
+                        let td_checkbox = document.createElement("TD")
+                        let input = document.createElement("INPUT")
+                        input.type = "checkbox"
+                        input.name = tr.id
+                        input.value = tr.id
+                        td_checkbox.appendChild(input)
+                        tr.appendChild(td_checkbox)
+
+                        let td = document.createElement("TD")
+                        td.innerHTML = `<img src='${d.thumbnail}'>`
+                        tr.appendChild(td)
+
+                        let td_name = document.createElement("TD")
+                        td_name.innerHTML = d.name
+                        tr.appendChild(td_name)
+
+
+
+
+
+                        table.appendChild(tr);
+                    }
+
+
+                }
+            };
+            request.open('GET', "/channels/" + document.getElementById("cn").value, true);
+            request.send();
+
+
+        }
+
+    </script>
+</head>
+
+<body>
+    <input placeholder="Channel name" id="cn">
+    <button onclick="get_channels()">Search for channel</button>
+    <table>
+        <thead>
+        <tr>
+            <th>Add?</th>
+            <th>Channel icon</th>
+            <th>Channel name</th>
+            <th>Channel description</th>
+        </tr>
+        </thead>
+        <tbody id="table_channels">
+
+        </tbody>
+        
+    </table>
+</body>
+
+</html>
