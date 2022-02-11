@@ -18,7 +18,7 @@ rsa==4.6
 six==1.15.0
 srt==3.3.0
 uritemplate==3.0.1
-urllib3==1.25.9
+urllib3==1.26.5
 youtube-dl==2020.6.16.1
 beautifulsoup4==4.9.1
 schedule==0.6.0
